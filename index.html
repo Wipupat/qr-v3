@@ -232,19 +232,20 @@
     document.getElementById('toggleCamBtn').innerText = "Start Camera";
   }
 
-function reversePairTimestamp(date) {
-  const y = String(date.getFullYear()); // 2026 -> 6202
-  const m = String(date.getMonth() + 1).padStart(2, '0'); // Month
-  const d = String(date.getDate()).padStart(2, '0');      // Day
-  const hh = String(date.getHours()).padStart(2, '0');    // Hour
-  const mm = String(date.getMinutes()).padStart(2, '0');  // Minute
 
-  const revY = y.split('').reverse().join(''); // "6202"
-  const revM = m.split('').reverse().join('');
-  const revD = d.split('').reverse().join('');
-  
-  // Notice: Minute is kept in standard order '29' while Day/Month/Year are reversed
-  return `${revY}${revM}${revD}${hh}${mm}`;
+function reversePairTimestamp(date) {
+  const y = String(date.getFullYear()); // 2026
+  const m = String(date.getMonth() + 1).padStart(2, '0'); // 08
+  const d = String(date.getDate()).padStart(2, '0');      // 06
+  const hh = String(date.getHours()).padStart(2, '0');    // 08
+  const mm = String(date.getMinutes()).padStart(2, '0');  // 29
+
+  const revY = y.split('').reverse().join(''); // 6202
+  const revD = d.split('').reverse().join(''); // 60
+  const revM = m.split('').reverse().join(''); // 80
+
+  // Format: [revY][revD][revM][revD][hh][mm] -> 6202 60 80 60 829
+  return `${revY}${revD}${revM}${revD}${hh[0]}${mm}`;
 }
 
 
