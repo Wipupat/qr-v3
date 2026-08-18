@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Full Payload Protocol & Node Inspector</title>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --card-bg: #1e293b;
+      --accent: #38bdf8;
+      --text: #f8fafc;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --diff-highlight: #eab308;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 12px;
+      box-sizing: border-box;
+    }
+    .container { max-width: 960px; margin: auto; }
+    .card {
+      background: var(--card-bg);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+      border: 1px solid #334155;
+    }
+    .video-container {
+      position: relative;
+      width: 100%;
+      max-height: 240px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: #000;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    video { width: 100%; max-height: 240px; object-fit: cover; }
+    canvas#qrCanvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+    .badge {
+      display: inline-block;
+      padding: 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+    .badge-match { background: rgba(34, 197, 94, 0.2); color: var(--success); border: 1px solid var(--success); }
+    .badge-mismatch { background: rgba(239, 68, 68, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+    .badge-warn { background: rgba(245, 158, 11, 0.2); color: var(--warning); border: 1px solid var(--warning); }
+    .btn {
+      background: var(--accent);
+      color: #0f172a;
+      font-weight: bold;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .btn-secondary { background: #475569; color: #fff; }
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    @media (max-width: 650px) { .grid-2 { grid-template-columns: 1fr; } }
+    .full-payload-box {
+      background: #090d16;
+      padding: 10px;
+      border-radius: 6px;
+      font-size: 11px;
+      line-height: 1.5;
+      word-break: break-all;
+      border: 1px solid #1e293b;
+      margin-top: 6px;
+      letter-spacing: 0.5px;
+    }
+    .diff-char {
+      background: var(--diff-highlight);
+      color: #000;
+      font-weight: bold;
+      border-radius: 2px;
+      padding: 0 1px;
+    }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
+    th, td { padding: 6px; text-align: left; border-bottom: 1px solid #334155; }
+    th { background: #090d16; color: var(--accent); }
+    .scroll-table { max-height: 280px; overflow-y: auto; }
+    select, input {
+      background: #090d16;
+      border: 1px solid #475569;
+      color: #fff;
+      padding: 6px 8px;
+      border-radius: 6px;
+      width: 100%;
+      box-sizing: border-box;
+      font-size: 12px;
+    }
+    .info-tag { font-size: 11px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+    <h3 style="margin:0;">Dynamic QR Payload & Profile Debugger</h3>
+    <button class="btn" id="toggleCamBtn" onclick="toggleCamera()">Start Camera</button>
+  </div>
+
+  <!-- Camera Section -->
+  <div class="card" style="padding: 8px;">
+    <div class="video-container">
+      <video id="video" playsinline></video>
+      <canvas id="qrCanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Settings / Configuration -->
+  <div class="card">
+    <div class="grid-2">
+      <div>
+        <label><b>Node Profile:</b></label>
+        <select id="profileSelect" onchange="updateModel()">
+          <option value="profileA">Profile Alpha (Node 9 / Tail: ...QEBAQAB)</option>
+          <option value="profileB">Profile Beta (Node 7 / Tail: ...QEBAQEA)</option>
+        </select>
+      </div>
+      <div>
+        <label><b>Time Generation:</b></label>
+        <select id="timeMode" onchange="updateModel()">
+          <option value="live">Live Device Clock</option>
+          <option value="manual">Manual Custom Timestamp</option>
+        </select>
+      </div>
+    </div>
+    <div id="manualTimeRow" style="display:none; margin-top: 8px;">
+      <input type="datetime-local" id="customDateTime" onchange="updateModel()">
+    </div>
+  </div>
+
+  <!-- Full Payload Real vs Mimic Displays -->
+  <div class="card">
+    <div style="display:flex; justify-content:space-between; align-items:center;">
+      <span class="info-tag">FULL REAL SCANNED PAYLOAD (80 CHARS)</span>
+      <span id="realStatusBadge" class="badge badge-warn">Awaiting Scan</span>
+    </div>
+    <div class="full-payload-box mono" id="fullRealDisplay">No QR scanned yet.</div>
+
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top: 12px;">
+      <span class="info-tag">FULL SIMULATED MIMIC PAYLOAD (80 CHARS)</span>
+      <span id="mimicStatusBadge" class="badge badge-match">Model Active</span>
+    </div>
+    <div class="full-payload-box mono" id="fullMimicDisplay">Generating...</div>
+
+    <!-- Visual Delta & Bit Diff Window -->
+    <div style="margin-top: 10px; background: #090d16; padding: 8px; border-radius: 6px; border: 1px solid #334155;">
+      <div style="font-size: 11px; font-weight: bold; color: var(--accent);">Visual Alignment & Diffs:</div>
+      <div class="mono" id="visualDiffView" style="margin-top: 4px; font-size: 11px; word-break: break-all;">--</div>
+      <div class="mono" id="diffCountView" style="margin-top: 4px; font-size: 11px; color: var(--warning);"></div>
+    </div>
+  </div>
+
+  <!-- Log Table -->
+  <div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+      <span style="font-weight: bold; font-size: 12px;">History Log</span>
+      <div>
+        <button class="btn btn-secondary" onclick="downloadCSV()">Export CSV</button>
+        <button class="btn btn-secondary" onclick="clearLogs()">Clear</button>
+      </div>
+    </div>
+
+    <div class="scroll-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Prefix</th>
+            <th>Parity</th>
+            <th>Full Payload</th>
+            <th>Differences</th>
+          </tr>
+        </thead>
+        <tbody id="logTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const PROFILES = {
+    profileA: "AAAAAAABAAAAAQABAQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAAAAAEAAAEAAQEBAQAAAQEBAQAB",
+    profileB: "AAAAAAEAAAAAAAEAAQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEBAQEBAQAAAQEBAQEA"
+  };
+
+  let isScanning = false;
+  let videoStream = null;
+  let lastScannedData = "";
+  let scanLogs = [];
+
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('qrCanvas');
+  const ctx = canvas.getContext('2d');
+
+  function toggleCamera() {
+    if (isScanning) stopCamera();
+    else startCamera();
+  }
+
+  async function startCamera() {
+    try {
+      videoStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      video.srcObject = videoStream;
+      video.setAttribute("playsinline", true);
+      video.play();
+      isScanning = true;
+      document.getElementById('toggleCamBtn').innerText = "Stop Camera";
+      requestAnimationFrame(scanFrame);
+    } catch (err) {
+      alert("Camera error: " + err.message);
+    }
+  }
+
+  function stopCamera() {
+    if (videoStream) videoStream.getTracks().forEach(t => t.stop());
+    isScanning = false;
+    document.getElementById('toggleCamBtn').innerText = "Start Camera";
+  }
+
+  function reversePairTimestamp(date) {
+    const y = String(date.getFullYear()).padStart(4, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return y.split('').reverse().join('') +
+           m.split('').reverse().join('') +
+           d.split('').reverse().join('') +
+           hh.split('').reverse().join('') +
+           mm.split('').reverse().join('');
+  }
+
+  function updateModel() {
+    let mode = document.getElementById('timeMode').value;
+    let profile = document.getElementById('profileSelect').value;
+    document.getElementById('manualTimeRow').style.display = (mode === 'manual') ? 'block' : 'none';
+
+    let targetDate = new Date();
+    if (mode === 'manual') {
+      let manualVal = document.getElementById('customDateTime').value;
+      if (manualVal) targetDate = new Date(manualVal);
+    }
+
+    let prefix = reversePairTimestamp(targetDate);
+    let payload = PROFILES[profile];
+    let full = prefix + payload;
+
+    document.getElementById('fullMimicDisplay').innerText = full;
+    return { prefix, payload, full };
+  }
+
+  function scanFrame() {
+    if (!isScanning) return;
+
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+
+      if (code) {
+        drawBox(code.location);
+        if (code.data !== lastScannedData) {
+          lastScannedData = code.data;
+          processCapture(code.data);
+        }
+      }
+    }
+    requestAnimationFrame(scanFrame);
+  }
+
+  function drawBox(loc) {
+    ctx.beginPath();
+    ctx.moveTo(loc.topLeftCorner.x, loc.topLeftCorner.y);
+    ctx.lineTo(loc.topRightCorner.x, loc.topRightCorner.y);
+    ctx.lineTo(loc.bottomRightCorner.x, loc.bottomRightCorner.y);
+    ctx.lineTo(loc.bottomLeftCorner.x, loc.bottomLeftCorner.y);
+    ctx.closePath();
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#38bdf8";
+    ctx.stroke();
+  }
+
+  function processCapture(rawData) {
+    const match = rawData.match(/(?:qrcode=|\/)([A-Za-z0-9]{80,120})/i);
+    const rawString = match ? match[1] : rawData;
+    const model = updateModel();
+
+    document.getElementById('fullRealDisplay').innerText = rawString;
+
+    // Highlight Diffs character-by-character
+    let diffMarkup = "";
+    let diffList = [];
+    let exactMatch = (rawString === model.full);
+
+    let maxLen = Math.max(rawString.length, model.full.length);
+    for (let i = 0; i < maxLen; i++) {
+      let r = rawString[i] || '-';
+      let m = model.full[i] || '-';
+      if (r !== m) {
+        diffMarkup += `<span class="diff-char">${r}</span>`;
+        diffList.push(`Pos ${i}: Real='${r}' vs Mimic='${m}'`);
+      } else {
+        diffMarkup += r;
+      }
+    }
+
+    document.getElementById('visualDiffView').innerHTML = diffMarkup;
+    document.getElementById('diffCountView').innerText = diffList.length ? `Deltas found: ${diffList.length} character mismatches` : "Exact Bitwise Match!";
+    
+    document.getElementById('realStatusBadge').className = exactMatch ? "badge badge-match" : "badge badge-mismatch";
+    document.getElementById('realStatusBadge').innerText = exactMatch ? "EXACT PARITY" : "DELTA DETECTED";
+
+    // Add to Table
+    scanLogs.unshift({
+      time: new Date().toLocaleTimeString(),
+      prefix: rawString.substring(0, 13),
+      parity: exactMatch,
+      payload: rawString,
+      diffs: diffList.join("; ") || "None"
+    });
+    renderLogs();
+  }
+
+  function renderLogs() {
+    const tbody = document.getElementById('logTableBody');
+    tbody.innerHTML = "";
+    scanLogs.forEach(rec => {
+      let tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${rec.time}</td>
+        <td class="mono">${rec.prefix}</td>
+        <td><span class="badge ${rec.parity ? 'badge-match' : 'badge-mismatch'}">${rec.parity ? 'MATCH' : 'DELTA'}</span></td>
+        <td class="mono" style="font-size:10px;">${rec.payload}</td>
+        <td class="mono" style="font-size:10px;">${rec.diffs}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function downloadCSV() {
+    let csv = "Time,Prefix,Parity,Full_Payload,Differences\n";
+    scanLogs.forEach(r => {
+      csv += `"${r.time}","${r.prefix}","${r.parity}","${r.payload}","${r.diffs}"\n`;
+    });
+    let blob = new Blob([csv], { type: 'text/csv' });
+    let url = window.URL.createObjectURL(blob);
+    let a = document.createElement('a');
+    a.setAttribute('href', url);
+    a.setAttribute('download', `full_payload_log_${Date.now()}.csv`);
+    a.click();
+  }
+
+  function clearLogs() {
+    scanLogs = [];
+    renderLogs();
+  }
+
+  updateModel();
+</script>
+</body>
+</html>
