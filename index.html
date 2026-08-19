@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Dynamic Protocol & Token Inspector</title>
+  <title>Dynamic QR Dual-Counter Inspector</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     :root {
@@ -107,7 +107,7 @@
 
 <div class="container">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-    <h3 style="margin:0;">Dynamic QR Protocol & 6s Rotation Inspector v3</h3>
+    <h3 style="margin:0;">Dynamic QR Dual-Counter Inspector</h3>
     <button class="btn" id="toggleCamBtn" onclick="toggleCamera()">Start Camera</button>
   </div>
 
@@ -119,20 +119,20 @@
     </div>
   </div>
 
-  <!-- Profile & Timestamp Configuration -->
+  <!-- Settings -->
   <div class="card">
     <div class="grid-2">
       <div>
         <label><b>Node Profile:</b></label>
         <select id="profileSelect" onchange="updateModel()">
-          <option value="profileA">Profile Alpha (Current Node Tail)</option>
-          <option value="profileB">Profile Beta (Alternate Node Tail)</option>
+          <option value="profileA">Profile Alpha (Building 9 Tail)</option>
+          <option value="profileB">Profile Beta (Building 7 Tail)</option>
         </select>
       </div>
       <div>
         <label><b>Time Generation:</b></label>
         <select id="timeMode" onchange="updateModel()">
-          <option value="live">Live Device Clock (Auto-Rotates every 6s)</option>
+          <option value="live">Live Device Clock (Auto-Rotates)</option>
           <option value="manual">Manual Custom Timestamp</option>
         </select>
       </div>
@@ -142,7 +142,7 @@
     </div>
   </div>
 
-  <!-- Full Payloads Display -->
+  <!-- Payloads Display -->
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <span class="info-tag">FULL REAL SCANNED PAYLOAD (80 CHARS)</span>
@@ -164,7 +164,7 @@
     </div>
   </div>
 
-  <!-- Capture History Table -->
+  <!-- History Log -->
   <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
       <span style="font-weight: bold; font-size: 12px;">History Log</span>
@@ -193,25 +193,31 @@
 </div>
 
 <script>
-  // 10-step 6-second rotation sequence table
-const ROTATION_STEPS = [
-  "AAAAAAEAAAAAAAEA", // Step 0 (:00 - :05s)
-  "AAAAAAEAAAABAAAA", // Step 1 (:06 - :11s)
-  "AAAAAAEBAAAAAQAA", // Step 2 (:12 - :17s)
-  "AAAAAAAAAAAAAAAA", // Step 3 (:18 - :23s)
-  "AAAAAAAAAAAAAQEA", // Step 4 (:24 - :29s)
-  "AAAAAAABAAAAAAEA", // Step 5 (:30 - :35s)
-  "AAAAAAABAAABAAAA", // Step 6 (:36 - :41s)
-  "AAAAAQEAAAAAAQAA", // Step 7 (:42 - :47s)
-  "AAAAAQEBAAAAAAAA", // Step 8 (:48 - :53s)
-  "AAAAAQEBAAAAAQEA"  // Step 9 (:54 - :59s)
-];
+  // 1. Fast Counter Slices (by 6-second second intervals)
+  const FAST_SECOND_CHUNKS = [
+    "AAAAAQEB", // :00 - :05s
+    "AAAAAQEB", // :06 - :11s
+    "AAAAAQEA", // :12 - :17s
+    "AAAAAQEA", // :18 - :23s
+    "AAAAAAAB", // :24 - :29s
+    "AAAAAAAB", // :30 - :35s
+    "AAAAAAAA", // :36 - :41s
+    "AAAAAAAA", // :42 - :47s
+    "AAAAAAEB", // :48 - :53s
+    "AAAAAAEB"  // :54 - :59s
+  ];
 
+  // 2. Slow Minute Shift Modifiers
+  const MINUTE_MODIFIERS_A = [
+    "AAAAAQEA", "AAABAAAA", "AAAAAAEA", "AAAAAAEA", "AAAAAQEA"
+  ];
+  const MINUTE_MODIFIERS_B = [
+    "AQEBAQEA", "AAABAQEA", "AQEAAQEA", "AAABAQEA", "AQEBAQEA"
+  ];
 
-  // Correct Node Tails
   const NODE_TAILS = {
-    profileA: "AQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEAAQEBAQAAAQEBAQAB",
-    profileB: "AQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEBAQEBAQAAAQEBAQEA"
+    profileA: "AAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEAAQEBAQAAAQEBAQAB",
+    profileB: "AAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEBAQEBAQAAAQEBAQEA"
   };
 
   let isScanning = false;
@@ -249,18 +255,28 @@ const ROTATION_STEPS = [
   }
 
   function generateExactTimestamp(date) {
-    const y = String(date.getFullYear());                  // "2026"
-    const m = String(date.getMonth() + 1).padStart(2, '0'); // "08"
-    const d = String(date.getDate()).padStart(2, '0');     // "19"
-    const hh = String(date.getHours()).padStart(2, '0');   // "08"
-    const mm = String(date.getMinutes()).padStart(2, '0'); // "25"
+    const y = String(date.getFullYear());                  
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');     
+    const hh = String(date.getHours()).padStart(2, '0');   
+    const mm = String(date.getMinutes()).padStart(2, '0'); 
 
-    const revY = y.split('').reverse().join('');           // "6202"
+    const revY = y.split('').reverse().join('');           
     return `${revY}60${m[1]}${d}${hh}${mm}`;
   }
 
-  function getRotationStep(seconds) {
-    return Math.min(Math.floor(seconds / 6), 9);
+  function generateDynamicToken(date) {
+    const sec = date.getSeconds();
+    const min = date.getMinutes();
+    const stepIdx = Math.min(Math.floor(sec / 6), 9);
+    const fastPart = FAST_SECOND_CHUNKS[stepIdx];
+
+    // Select modifier based on minute parity
+    const modArray = (min % 2 === 0) ? MINUTE_MODIFIERS_B : MINUTE_MODIFIERS_A;
+    const modIdx = (Math.floor(sec / 12)) % modArray.length;
+    const slowPart = modArray[modIdx];
+
+    return { token: `${fastPart}${slowPart}`, stepIdx };
   }
 
   function updateModel() {
@@ -275,13 +291,12 @@ const ROTATION_STEPS = [
     }
 
     let prefix = generateExactTimestamp(targetDate);
-    let stepIndex = getRotationStep(targetDate.getSeconds());
-    let token = ROTATION_STEPS[stepIndex];
+    let { token, stepIdx } = generateDynamicToken(targetDate);
     let tail = NODE_TAILS[profile];
     let full = `${prefix}${token}${tail}`;
 
     document.getElementById('fullMimicDisplay').innerText = full;
-    return { prefix, token, tail, full, stepIndex };
+    return { prefix, token, tail, full, stepIdx };
   }
 
   function scanFrame() {
@@ -342,14 +357,14 @@ const ROTATION_STEPS = [
     }
 
     document.getElementById('visualDiffView').innerHTML = diffMarkup;
-    document.getElementById('diffCountView').innerText = diffList.length ? `Deltas found: ${diffList.length} mismatches` : "EXACT BITWISE MATCH (100% PARITY)";
+    document.getElementById('diffCountView').innerText = diffList.length ? `Deltas: ${diffList.length} character variances` : "EXACT BITWISE MATCH (100% PARITY)";
     
     document.getElementById('realStatusBadge').className = exactMatch ? "badge badge-match" : "badge badge-mismatch";
     document.getElementById('realStatusBadge').innerText = exactMatch ? "EXACT PARITY" : "DELTA DETECTED";
 
     scanLogs.unshift({
       time: new Date().toLocaleTimeString(),
-      step: `Step ${model.stepIndex}`,
+      step: `Step ${model.stepIdx}`,
       prefix: rawString.substring(0, 13),
       parity: exactMatch,
       payload: rawString,
@@ -384,7 +399,7 @@ const ROTATION_STEPS = [
     let url = window.URL.createObjectURL(blob);
     let a = document.createElement('a');
     a.setAttribute('href', url);
-    a.setAttribute('download', `exact_parity_log_${Date.now()}.csv`);
+    a.setAttribute('download', `dual_counter_log_${Date.now()}.csv`);
     a.click();
   }
 
@@ -393,7 +408,6 @@ const ROTATION_STEPS = [
     renderLogs();
   }
 
-  // Live timer tick to re-generate model every 1 second
   setInterval(() => {
     if (document.getElementById('timeMode').value === 'live') {
       updateModel();
