@@ -194,18 +194,19 @@
 
 <script>
   // 10-step 6-second rotation sequence table
-  const ROTATION_STEPS = [
-    "AAAAAAEAAAAAAQAB", // Step 0: :00 - :05s
-    "AAAAAAEBAAAAAAAB", // Step 1: :06 - :11s
-    "AAAAAAEBAAAAAQEB", // Step 2: :12 - :17s
-    "AAAAAAAAAAAAAAEB", // Step 3: :18 - :23s
-    "AAAAAAAAAAABAAAB", // Step 4: :24 - :29s
-    "AAAAAAABAAAAAQAB", // Step 5: :30 - :35s
-    "AAAAAQEAAAAAAAAB", // Step 6: :36 - :41s
-    "AAAAAQEAAAAAAQEB", // Step 7: :42 - :47s
-    "AAAAAQEBAAAAAAEB", // Step 8: :48 - :53s
-    "AAAAAQEBAAABAAAB"  // Step 9: :54 - :59s
-  ];
+const ROTATION_STEPS = [
+  "AAAAAAEAAAAAAAEA", // Step 0 (:00 - :05s)
+  "AAAAAAEAAAABAAAA", // Step 1 (:06 - :11s)
+  "AAAAAAEBAAAAAQAA", // Step 2 (:12 - :17s)
+  "AAAAAAAAAAAAAAAA", // Step 3 (:18 - :23s)
+  "AAAAAAAAAAAAAQEA", // Step 4 (:24 - :29s)
+  "AAAAAAABAAAAAAEA", // Step 5 (:30 - :35s)
+  "AAAAAAABAAABAAAA", // Step 6 (:36 - :41s)
+  "AAAAAQEAAAAAAQAA", // Step 7 (:42 - :47s)
+  "AAAAAQEBAAAAAAAA", // Step 8 (:48 - :53s)
+  "AAAAAQEBAAAAAQEA"  // Step 9 (:54 - :59s)
+];
+
 
   // Correct Node Tails
   const NODE_TAILS = {
