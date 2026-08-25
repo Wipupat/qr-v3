@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Dynamic QR Dual-Counter Inspector</title>
+  <title>Dynamic QR Dual-Counter Inspector V5</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     :root {
@@ -107,7 +107,7 @@
 
 <div class="container">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-    <h3 style="margin:0;">Dynamic QR Dual-Counter Inspector V4</h3>
+    <h3 style="margin:0;">Dynamic QR Dual-Counter Inspector V5</h3>
     <button class="btn" id="toggleCamBtn" onclick="toggleCamera()">Start Camera</button>
   </div>
 
@@ -193,31 +193,24 @@
 </div>
 
 <script>
-  // 1. Fast Counter Slices (by 6-second second intervals)
-  const FAST_SECOND_CHUNKS = [
-    "AAAAAQEB", // :00 - :05s
-    "AAAAAQEB", // :06 - :11s
-    "AAAAAQEA", // :12 - :17s
-    "AAAAAQEA", // :18 - :23s
-    "AAAAAAAB", // :24 - :29s
-    "AAAAAAAB", // :30 - :35s
-    "AAAAAAAA", // :36 - :41s
-    "AAAAAAAA", // :42 - :47s
-    "AAAAAAEB", // :48 - :53s
-    "AAAAAAEB"  // :54 - :59s
+  // 10-step rotation table (offsets 13–28)
+  const ROTATION_STEPS = [
+    "AAAAAQEBAAAAAQAA", // Step 0 (:00 - :05s)
+    "AAAAAAEAAAAAAAAA", // Step 1 (:06 - :11s)
+    "AAAAAAEAAAAAAQEA", // Step 2 (:12 - :17s)
+    "AAAAAAEBAAAAAAEA", // Step 3 (:18 - :23s)
+    "AAAAAAEBAAABAAAA", // Step 4 (:24 - :29s)
+    "AAAAAAAAAAAAAQAA", // Step 5 (:30 - :35s)
+    "AAAAAAABAAAAAAAA", // Step 6 (:36 - :41s)
+    "AAAAAAABAAAAAQEA", // Step 7 (:42 - :47s)
+    "AAAAAQEAAAAAAAAB", // Step 8 (:48 - :53s)
+    "AAAAAQEAAAABAAAA"  // Step 9 (:54 - :59s)
   ];
 
-  // 2. Slow Minute Shift Modifiers
-  const MINUTE_MODIFIERS_A = [
-    "AAAAAQEA", "AAABAAAA", "AAAAAAEA", "AAAAAAEA", "AAAAAQEA"
-  ];
-  const MINUTE_MODIFIERS_B = [
-    "AQEBAQEA", "AAABAQEA", "AQEAAQEA", "AAABAQEA", "AQEBAQEA"
-  ];
-
+  // 51-character static tails (offsets 29–80)
   const NODE_TAILS = {
-    profileA: "AAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEAAQEBAQAAAQEBAQAB",
-    profileB: "AAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEBAQEBAQAAAQEBAQEA"
+    profileA: "AQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAEAAAEAAAEAAQEBAQAAAQEBAQAB",
+    profileB: "AQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEBAQEBAQAAAQEBAQEA"
   };
 
   let isScanning = false;
@@ -265,20 +258,6 @@
     return `${revY}60${m[1]}${d}${hh}${mm}`;
   }
 
-  function generateDynamicToken(date) {
-    const sec = date.getSeconds();
-    const min = date.getMinutes();
-    const stepIdx = Math.min(Math.floor(sec / 6), 9);
-    const fastPart = FAST_SECOND_CHUNKS[stepIdx];
-
-    // Select modifier based on minute parity
-    const modArray = (min % 2 === 0) ? MINUTE_MODIFIERS_B : MINUTE_MODIFIERS_A;
-    const modIdx = (Math.floor(sec / 12)) % modArray.length;
-    const slowPart = modArray[modIdx];
-
-    return { token: `${fastPart}${slowPart}`, stepIdx };
-  }
-
   function updateModel() {
     let mode = document.getElementById('timeMode').value;
     let profile = document.getElementById('profileSelect').value;
@@ -291,7 +270,8 @@
     }
 
     let prefix = generateExactTimestamp(targetDate);
-    let { token, stepIdx } = generateDynamicToken(targetDate);
+    let stepIdx = Math.min(Math.floor(targetDate.getSeconds() / 6), 9);
+    let token = ROTATION_STEPS[stepIdx];
     let tail = NODE_TAILS[profile];
     let full = `${prefix}${token}${tail}`;
 
