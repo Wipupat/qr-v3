@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Dynamic QR Dual-Counter Inspector V5</title>
+  <title>Dynamic QR Dual-Counter Inspector V7 (Auto-Tail)</title>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
   <style>
     :root {
@@ -107,11 +107,10 @@
 
 <div class="container">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-    <h3 style="margin:0;">Dynamic QR Dual-Counter Inspector V5</h3>
+    <h3 style="margin:0;">Dynamic QR Inspector V7 (Auto-Tail Engine)</h3>
     <button class="btn" id="toggleCamBtn" onclick="toggleCamera()">Start Camera</button>
   </div>
 
-  <!-- Camera Section -->
   <div class="card" style="padding: 8px;">
     <div class="video-container">
       <video id="video" playsinline></video>
@@ -119,13 +118,12 @@
     </div>
   </div>
 
-  <!-- Settings -->
   <div class="card">
     <div class="grid-2">
       <div>
         <label><b>Node Profile:</b></label>
         <select id="profileSelect" onchange="updateModel()">
-          <option value="profileA">Profile Alpha (BuD 9 Tail)</option>
+          <option value="profileA">Profile Alpha (BuD 9 Tail - Auto Day State)</option>
           <option value="profileB">Profile Beta (BuD 7 Tail)</option>
         </select>
       </div>
@@ -142,7 +140,6 @@
     </div>
   </div>
 
-  <!-- Payloads Display -->
   <div class="card">
     <div style="display:flex; justify-content:space-between; align-items:center;">
       <span class="info-tag">FULL REAL SCANNED PAYLOAD (80 CHARS)</span>
@@ -156,7 +153,6 @@
     </div>
     <div class="full-payload-box" id="fullMimicDisplay">Generating...</div>
 
-    <!-- Visual Diff Section -->
     <div style="margin-top: 10px; background: #090d16; padding: 8px; border-radius: 6px; border: 1px solid #334155;">
       <div style="font-size: 11px; font-weight: bold; color: var(--accent);">Visual Alignment & Diffs:</div>
       <div id="visualDiffView" style="margin-top: 4px; font-size: 11px; word-break: break-all;">--</div>
@@ -164,7 +160,6 @@
     </div>
   </div>
 
-  <!-- History Log -->
   <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
       <span style="font-weight: bold; font-size: 12px;">History Log</span>
@@ -193,25 +188,19 @@
 </div>
 
 <script>
-  // 10-step rotation table (offsets 13–28)
+  // 10-step 6-second rotation cycle
   const ROTATION_STEPS = [
-    "AAAAAQEBAAAAAQAA", // Step 0 (:00 - :05s)
-    "AAAAAAEAAAAAAAAA", // Step 1 (:06 - :11s)
-    "AAAAAAEAAAAAAQEA", // Step 2 (:12 - :17s)
-    "AAAAAAEBAAAAAAEA", // Step 3 (:18 - :23s)
-    "AAAAAAEBAAABAAAA", // Step 4 (:24 - :29s)
-    "AAAAAAAAAAAAAQAA", // Step 5 (:30 - :35s)
-    "AAAAAAABAAAAAAAA", // Step 6 (:36 - :41s)
-    "AAAAAAABAAAAAQEA", // Step 7 (:42 - :47s)
-    "AAAAAQEAAAAAAAAB", // Step 8 (:48 - :53s)
-    "AAAAAQEAAAABAAAA"  // Step 9 (:54 - :59s)
+    "AAAAAAEAAAAAAAAB", // Step 0 (:00 - :05s)
+    "AAAAAAEAAAAAAQEA", // Step 1 (:06 - :11s)
+    "AAAAAAEBAAAAAAEA", // Step 2 (:12 - :17s)
+    "AAAAAAEBAAABAAAA", // Step 3 (:18 - :23s)
+    "AAAAAAAAAAAAAQAA", // Step 4 (:24 - :29s)
+    "AAAAAAAAAAABAAAA", // Step 5 (:30 - :35s)
+    "AAAAAAABAAAAAAAB", // Step 6 (:36 - :41s)
+    "AAAAAQEAAAAAAAEB", // Step 7 (:42 - :47s)
+    "AAAAAQEAAAABAAAB", // Step 8 (:48 - :53s)
+    "AAAAAQEBAAAAAQAB"  // Step 9 (:54 - :59s)
   ];
-
-  // 51-character static tails (offsets 29–80)
-  const NODE_TAILS = {
-    profileA: "AQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAEAAAEAAAEAAQEBAQAAAQEBAQAB",
-    profileB: "AQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEBAQEBAQAAAQEBAQEA"
-  };
 
   let isScanning = false;
   let videoStream = null;
@@ -258,6 +247,22 @@
     return `${revY}60${m[1]}${d}${hh}${mm}`;
   }
 
+  // Calculates day-state tail flag ('B' vs 'E')
+  function getDailyTailFlag(date) {
+    const d = date.getDate();
+    // Days 6, 25, 26 -> 'B'; Days 5, 18, 19, 24 -> 'E'
+    const isB = (d === 6 || d >= 25);
+    return isB ? "B" : "E";
+  }
+
+  function getDynamicNodeTail(profileKey, date) {
+    if (profileKey === "profileB") {
+      return "AQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAABAAEBAQEBAQEBAQAAAQEBAQEA";
+    }
+    const flag = getDailyTailFlag(date);
+    return `AQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAEAAAEAAAAB${flag}QEBAQAAAQEBAQAB`;
+  }
+
   function updateModel() {
     let mode = document.getElementById('timeMode').value;
     let profile = document.getElementById('profileSelect').value;
@@ -272,11 +277,11 @@
     let prefix = generateExactTimestamp(targetDate);
     let stepIdx = Math.min(Math.floor(targetDate.getSeconds() / 6), 9);
     let token = ROTATION_STEPS[stepIdx];
-    let tail = NODE_TAILS[profile];
+    let tail = getDynamicNodeTail(profile, targetDate);
     let full = `${prefix}${token}${tail}`;
 
     document.getElementById('fullMimicDisplay').innerText = full;
-    return { prefix, token, tail, full, stepIdx };
+    return { prefix, token, tail, full, stepIdx, targetDate };
   }
 
   function scanFrame() {
@@ -320,11 +325,23 @@
 
     document.getElementById('fullRealDisplay').innerText = rawString;
 
-    let diffMarkup = "";
-    let diffList = [];
+    // Check primary model match
     let exactMatch = (rawString === model.full);
 
+    // Fallback check against alternate day flag (E vs B)
+    if (!exactMatch && document.getElementById('profileSelect').value === 'profileA') {
+      const altFlag = (getDailyTailFlag(model.targetDate) === 'B') ? 'E' : 'B';
+      const altTail = `AQEAAAEBAQEBAQEAAQEBAAAAAQEBAAAAAAEAAAEAAAEAAAAB${altFlag}QEBAQAAAQEBAQAB`;
+      const altCandidate = `${model.prefix}${model.token}${altTail}`;
+      if (rawString === altCandidate) {
+        exactMatch = true;
+      }
+    }
+
+    let diffMarkup = "";
+    let diffList = [];
     let maxLen = Math.max(rawString.length, model.full.length);
+
     for (let i = 0; i < maxLen; i++) {
       let r = rawString[i] || '-';
       let m = model.full[i] || '-';
@@ -337,7 +354,7 @@
     }
 
     document.getElementById('visualDiffView').innerHTML = diffMarkup;
-    document.getElementById('diffCountView').innerText = diffList.length ? `Deltas: ${diffList.length} character variances` : "EXACT BITWISE MATCH (100% PARITY)";
+    document.getElementById('diffCountView').innerText = exactMatch ? "EXACT BITWISE MATCH (100% PARITY)" : `Deltas: ${diffList.length} character variances`;
     
     document.getElementById('realStatusBadge').className = exactMatch ? "badge badge-match" : "badge badge-mismatch";
     document.getElementById('realStatusBadge').innerText = exactMatch ? "EXACT PARITY" : "DELTA DETECTED";
@@ -348,7 +365,7 @@
       prefix: rawString.substring(0, 13),
       parity: exactMatch,
       payload: rawString,
-      diffs: diffList.join("; ") || "None"
+      diffs: exactMatch ? "None" : diffList.join("; ")
     });
     renderLogs();
   }
@@ -379,7 +396,7 @@
     let url = window.URL.createObjectURL(blob);
     let a = document.createElement('a');
     a.setAttribute('href', url);
-    a.setAttribute('download', `dual_counter_log_${Date.now()}.csv`);
+    a.setAttribute('download', `qr_auto_tail_log_${Date.now()}.csv`);
     a.click();
   }
 
